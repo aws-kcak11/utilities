@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Extract ClientID & Secrets for POSTMAN</title>
+    <style type="text/css">
+        * {
+            padding: 0;
+            margin: 0;
+        }
+
+        body {
+            font-family: Verdana;
+            padding-top: 50px;
+            padding-left: 100px;
+        }
+
+        label {
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+
+        textarea {
+            width: calc(100% - 100px);
+            height: 150px;
+            display: block;
+            margin-bottom: 10px;
+            resize: none;
+            outline: none;
+            border: 2px solid #000;
+            font-family: Verdana;
+            padding: 5px;
+        }
+
+        #terminalCommands {
+            height: 300px;
+        }
+
+        .pmScriptLbl,
+        #pmScript,
+        .successMessage {
+            display: none;
+        }
+
+        .operationCompleted *:not(#pmScript):not(.successMessage):not(.pmScriptLbl) {
+            display: none;
+        }
+
+        .successMessage {
+            font-weight: bold;
+            font-size: 20px;
+        }
+
+        .operationCompleted .pmScriptLbl,
+        .operationCompleted #pmScript,
+        .operationCompleted .successMessage {
+            display: block;
+        }
+
+        #parsedContent {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="initialInput">
+        <label>Paste the content (related to ClientID & Secret) from POSTMAN "SetEnvironment" in the box below & click the button:</label>
+        <textarea id="pmInput" spellcheck="false"></textarea>
+        <button type="button" onclick="parsePMInput();">Prepare Commands for Terminal & Script for POSTMAN</button>
+    </div>
+    <div id="parsedContent">
+        <label>TERMINAL COMMANDS:</label>
+        <textarea id="terminalCommands" spellcheck="false"></textarea>
+        <br />
+        <label class="pmScriptLbl">POSTMAN Script:</label>
+        <textarea id="pmScript" spellcheck="false"></textarea>
+        <span class="successMessage">Copy the above script into your POSTMAN "SetEnvironment"</span>
+        <br />
+        <label>Enter the output from the Terminal after running the "TERMINAL COMMANDS" in the box below & click "Update POSTMAN Script" button:</label>
+        <textarea id="terminalOutput" spellcheck="false"></textarea>
+        <button onclick="updatePOSTMANScript();">Update POSTMAN Script</button>
+    </div>
+    <script type="text/javascript">
+        function text2lines(text) {
+            var res = encodeURIComponent(text);
+            res = res.replace(/%0D/g, "%0A");
+            return decodeURIComponent(res).split("\n");
+        }
+
+        function parsePMInput() {
+            var elem = document.getElementById("pmInput");
+            if (!elem.value) {
+                return;
+            }
+            elem.parentNode.style.display = "none";
+            document.getElementById("parsedContent").style.display = "block";
+            var terminalCommands = document.getElementById("terminalCommands");
+            var pmScript = document.getElementById("pmScript");
+            var lines = text2lines(elem.value);
+            var tContent = [], pContent = [];
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i].indexOf("//") !== -1 && lines[i].indexOf("kubectl") !== -1) {
+                    tContent.push(lines[i].replace(/\/\//g, ""));
+                }
+                if (lines[i].indexOf("pm.environment") !== -1) {
+                    pContent.push(lines[i]);
+                }
+            }
+            terminalCommands.value = tContent.join("\n\n") + "\n\n";
+            pmScript.value = pContent.join("\n");
+            window.pmScriptLines = pContent;
+        }
+
+        function updatePOSTMANScript() {
+            var terminalOutput = document.getElementById("terminalOutput");
+            var tout_lines = text2lines(terminalOutput.value);
+            var ids = [];
+            for (var i = 0; i < tout_lines.length; i++) {
+                if (tout_lines[i].length === 36 && tout_lines[i].split("-").length === 5) {
+                    ids.push(tout_lines[i]);
+                }
+            }
+            if (window.pmScriptLines.length !== ids.length) {
+                alert("Error");
+                return;
+            }
+            for (var i = 0; i < ids.length; i++) {
+                window.pmScriptLines[i] = replaceDynamicValue(window.pmScriptLines[i], ids[i]) || window.pmScriptLines[i];
+            }
+            var pmScript = document.getElementById("pmScript");
+            pmScript.value = window.pmScriptLines.join("\n");
+            document.getElementById("parsedContent").classList.add("operationCompleted");
+        }
+
+        function replaceDynamicValue(str, val) {
+            if (str.indexOf("<") === -1 && str.indexOf(">") === -1) {
+                return;
+            }
+            var res = str.split("<")[0] + val + str.split(">")[1];
+            return res;
+        }
+    </script>
+</body>
+
+</html>
